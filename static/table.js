@@ -51,7 +51,7 @@ function render(additional_headers, displayed_columns, table_rows, columns, conf
 
     for (o of config.heatmaps) {
         if (displayed_columns.includes(o.title)) {
-            colorizeColumn(additional_headers.length, displayed_columns, o.title, o.heatmap, o.scale, config.detail_mode, config.header_label_length);
+            colorizeColumn(additional_headers.length, displayed_columns, o, config.detail_mode, config.header_label_length);
         }
     }
 
