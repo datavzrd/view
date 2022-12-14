@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>datavzrd report</title>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" type="text/css" href="static/bootstrap.min.css">
+  <link rel="stylesheet" type="text/css" href="static/bootstrap-table.min.css">
+  <link rel="stylesheet" type="text/css" href="static/bootstrap-select.min.css">
+  <link rel="stylesheet" type="text/css" href="static/bootstrap-table-fixed-columns.min.css">
+  <link rel="stylesheet" type="text/css" href="static/datavzrd.css">
+</head>
+
+<body>
+<script src="static/jquery.min.js"></script>
+<script src="static/bootstrap.bundle.min.js"></script>
+<script src="static/bootstrap-table.min.js"></script>
+<script src="static/bootstrap-select.min.js"></script>
+<script src="static/bootstrap-table-fixed-columns.min.js"></script>
+<script src="static/bootstrap-table-filter-control.min.js"></script>
+<script src="static/vega.min.js"></script>
+<script src="static/vega-lite.min.js"></script>
+<script src="static/vega-embed.min.js"></script>
+<script src="static/lz-string.min.js"></script>
+<script src="static/showdown.min.js"></script>
+<script src="static/qrcode.min.js"></script>
+<script src="static/datavzrd.js"></script>
+<script src="static/table.js"></script>
+
+<div id="page-container">
+  <div id="content-wrap">
+    <nav class="navbar navbar-expand navbar-light navbar-top">
+      <div class="collapse navbar-collapse" id="navbarText2">
+        <ol class="navbar-nav mr-auto breadcrumb">
+          <li class="breadcrumb-item"><div>datavzrd view</div></li>
+        </ol>
+      </div>
+    </nav>
+    <div class="container-fluid">
+      <div class="row justify-content-center">
+        <div class="col-md-12 loading text-center">
+          <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+          </div>
+        </div>
+        <div class="col-md-12 table-container" style="margin-top: 15px;">
+          <table id="table" class="table" data-classes="table">
+          </table>
+        </div>
+      </div>
+      <div class="row justify-content-center">
+        <div class="col-md-12"></div>
+      </div>
+  <footer class="footer">
+    <nav class="navbar navbar-expand navbar-light navbar-top">
+      <a class="navbar-brand" href="#">datavzrd</a>
+      <div class="collapse navbar-collapse" id="navbarText">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="https://github.com/rust-bio/rust-bio-tools/blob/master/CHANGELOG.md">static</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="https://github.com/rust-bio/rust-bio-tools">github</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+  </footer>
+</div>
+</body>
+</html>
