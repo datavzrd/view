@@ -2,7 +2,9 @@ $(document).ready(function() {
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
     const compressed_config = urlParams.get('config');
-    const config = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed_config));
+    const jsonm_config = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed_config));
+    const unpacker = new jsonm.Unpacker();
+    let config = unpacker.unpack(jsonm_config);
     $('.table-container').show();
     $('.loading').hide();
     $(function () {
