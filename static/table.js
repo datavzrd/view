@@ -1,130 +1,274 @@
-$(document).ready(function() {
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
-    const compressed_config = urlParams.get('config');
-    const jsonm_config = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed_config));
-    const unpacker = new jsonm.Unpacker();
-    let config = unpacker.unpack(jsonm_config);
-    $('.table-container').show();
-    $('.loading').hide();
-    $(function () {
-        $('[data-toggle="tooltip"]').tooltip()
-    });
-    $(function () {
-        $('[data-toggle="popover"]').popover()
-    });
-    let columns = [];
+function renderMarkdownDescription() {
+    var innerDescription = document.getElementById('innerDescription');
+    var converter = new showdown.Converter();
+    converter.setFlavor('github');
+    innerDescription.innerHTML = converter.makeHtml(innerDescription.dataset.markdown);
+}
 
-    for (const column of config.displayed_columns) {
-        columns.push({
-            "field": column,
-            "title": column,
-        });
+function precision_formatter(precision, value) {
+    if (value == "") {
+        return "";
     }
-
-    $('#table').bootstrapTable({
-        columns: columns,
-        detailView: config.detail_mode,
-        detailFormatter: "detailFormatter"
-    })
-
-    // Create new hidden html div to append to view and attach config to it as data attribute
-    let config_div = document.createElement("div");
-    config_div.id = "config";
-    config_div.style.display = "none";
-    config_div.setAttribute("data-config", JSON.stringify(config));
-    document.body.appendChild(config_div);
-
-
-    $('#table').bootstrapTable('append', config.data);
-
-    render("", config.displayed_columns, config.data, columns, config);
-});
-
-function render(additional_headers, displayed_columns, table_rows, columns, config) {
-    for (o of config.ticks) {
-        if (displayed_columns.includes(o.title)) {
-            renderTickPlot(additional_headers.length, displayed_columns, o.title, o.slug_title, o.specs, o.is_float, o.precision, config.detail_mode, config.header_label_length);
-        }
-    }
-
-    for (o of config.bars) {
-        if (displayed_columns.includes(o.title)) {
-            renderBarPlot(additional_headers.length, displayed_columns, o.title, o.slug_title, o.specs, o.is_float, o.precision, config.detail_mode, config.header_label_length);
-        }
-    }
-
-    for (o of config.link_urls) {
-        if (displayed_columns.includes(o.title)) {
-            linkUrlColumn(additional_headers.length, displayed_columns, columns, o.title, o.url, config.detail_mode, config.header_label_length);
-        }
-    }
-
-    for (o of config.heatmaps) {
-        if (displayed_columns.includes(o.title)) {
-            colorizeColumn(additional_headers.length, displayed_columns, o, config.detail_mode, config.header_label_length);
-        }
-    }
-
-    for (o of config.ellipsis) {
-        if (displayed_columns.includes(o.title)) {
-            shortenColumn(additional_headers.length, displayed_columns, o.title, o.ellipsis, config.detail_mode, config.header_label_length);
-        }
+    value = parseFloat(value)
+    if (1 / (10 ** precision) < Math.abs(value) || value == 0) {
+        return value.toFixed(precision).toString()
+    } else {
+        return value.toExponential(precision)
     }
 }
 
-function detailFormatter(index, row) {
-    // Load config object from hidden div
-    let config = JSON.parse(document.getElementById("config").getAttribute("data-config"));
+function shareRow(index) {
+    var data = $('#table').bootstrapTable('getData')[index];
+    delete data["linkouts"];
+    var c = JSON.parse(JSON.stringify(config));
+    c["data"] = data;
+    const packer = new jsonm.Packer();
+    let packedMessage = packer.pack(c);
+    compressed = LZString.compressToEncodedURIComponent(JSON.stringify(packedMessage))
+    $('#qr-modal').modal('show');
+    document.getElementById("qr-code").innerHTML = "";
+    let url = `https://datavzrd.github.io/view/?config=${compressed}`;
+    $('#open-url').attr("href", url);
+    QRCode.toCanvas(document.getElementById('qr-code'), url)
+}
 
-    let cp = [];
-    let ticks = config.tick_titles;
-    let bars = config.bar_titles;
-    let displayed_columns = config.displayed_columns;
-    let hidden_columns = config.hidden_columns;
-    var html = []
-    $.each(row, function (key, value) {
-        if (!hidden_columns.includes(key) && !displayed_columns.includes(key) && key !== "linkouts" && key !== "share") {
-            if (cp.includes(key) || ticks.includes(key) || bars.includes(key)) {
-                if (cp.includes(key)) {
-                    id = `detail-plot-${index}-cp-${cp.indexOf(key)}`;
-                } else if (bars.includes(key)) {
-                    id = `detail-plot-${index}-bars-${bars.indexOf(key)}`;
-                } else {
-                    id = `detail-plot-${index}-ticks-${ticks.indexOf(key)}`;
-                }
-                var card = `<div class="card">
-                   <div class="card-header">
-                     ${key}
-                   </div>
-                   <div class="card-body">
-                     <div id="${id}"></div>
-                   </div>
-                 </div>`;
-                html.push(card);
-            } else if (config.heatmap_titles.includes(key)) {
-                id = `heatmap-${index}-${config.heatmap_titles.indexOf(key)}`;
-                var card = `<div class="card">
-                  <div class="card-header">
-                    ${key}
-                  </div>
-                  <div id="${id}" class="card-body">
-                    ${value}
-                  </div>
-                </div>`;
-                html.push(card);
+function renderTickPlot(ah, columns, title, slug_title, specs, is_float, precision, detail_mode, header_label_length) {
+    let index = columns.indexOf(title) + 1;
+    if (detail_mode || header_label_length !== 0) {
+        index += 1;
+    }
+    let row = 0;
+    let table_rows = $('#table').bootstrapTable('getData', { useCurrentPage: true });
+    $(`table > tbody > tr td:nth-child(${index})`).each(
+        function () {
+            var id = `${slug_title}-${row}`;
+            this.classList.add("plotcell");
+            const div = document.createElement("div");
+            let value = table_rows[row][title];
+            if (is_float && precision !== undefined) {
+                value = precision_formatter(precision, value);
+            }
+            if (value != "") {
+                this.innerHTML = "";
+                this.appendChild(div);
+                var data = [];
+                var v = {};
+                v[title] = value;
+                data.push(v);
+                var s = specs;
+                s.data = {};
+                s.data.values = data;
+                var opt = { "actions": false };
+                vegaEmbed(div, JSON.parse(JSON.stringify(s)), opt);
+            }
+            row++;
+        }
+    );
+}
+
+function renderBarPlot(ah, columns, title, slug_title, specs, is_float, precision, detail_mode, header_label_length) {
+    let index = columns.indexOf(title) + 1;
+    if (detail_mode || header_label_length !== 0) {
+        index += 1;
+    }
+    let row = 0;
+    let table_rows = $('#table').bootstrapTable('getData', { useCurrentPage: true });
+    $(`table > tbody > tr td:nth-child(${index})`).each(
+        function () {
+            var id = `${slug_title}-${row}`;
+            this.classList.add("plotcell");
+            const div = document.createElement("div");
+            let value = table_rows[row][title];
+            if (is_float && precision !== undefined) {
+                value = precision_formatter(precision, value);
+            }
+            if (value != "") {
+                this.innerHTML = "";
+                this.appendChild(div);
+                var data = [];
+                var v = {};
+                v[title] = value;
+                data.push(v);
+                var s = specs;
+                s.data = {};
+                s.data.values = data;
+                var opt = { "actions": false };
+                vegaEmbed(div, JSON.parse(JSON.stringify(s)), opt);
+            }
+            row++;
+        }
+    );
+}
+
+function renderDetailTickBarPlot(value, div, specs, title) {
+    if (value != "") {
+        var data = [];
+        var v = {};
+        v[title] = value;
+        data.push(v);
+        var s = specs;
+        s.data = {};
+        s.data.values = data;
+        var opt = { "actions": false };
+        vegaEmbed(div, JSON.parse(JSON.stringify(s)), opt);
+    }
+}
+
+function colorizeColumn(ah, columns, heatmap, detail_mode, header_label_length) {
+    let index = columns.indexOf(heatmap.title) + 1;
+    if (detail_mode || header_label_length !== 0) {
+        index += 1;
+    }
+    let row = 0;
+    var table_rows = $("#table").bootstrapTable('getData', {useCurrentPage: "true"});
+    var custom_func = heatmap.heatmap.custom_content;
+
+    let scale = null;
+
+    if (heatmap.heatmap.scale == "ordinal") {
+        if (heatmap.heatmap.domain != null) {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range.length == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).range(heatmap.heatmap.range);
             } else {
-                var card = `<div class="card">
-                   <div class="card-header">
-                     ${key}
-                   </div>
-                   <div class="card-body">
-                    ${value}
-                   </div>
-                 </div>`;
-                html.push(card);
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain);
+            }
+        } else {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range.length == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)();
             }
         }
-    })
-    return `<div class="d-flex flex-wrap">${html.join('')}</div>`
+    } else {
+        if (heatmap.heatmap.domain != null) {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp).range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp);
+            }
+        } else {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp).range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp);
+            }
+        }
+    }
+
+    $(`table > tbody > tr td:nth-child(${index})`).each(
+        function() {
+            var value = table_rows[row][heatmap.title];
+            if (custom_func !== null) {
+                value = custom_func(value, table_rows[row]);
+            }
+            if (value !== "") {
+                this.style.setProperty("background-color", scale(value), "important");
+            }
+            row++;
+        }
+    );
+}
+
+function shortenColumn(ah, columns, title, ellipsis, detail_mode, header_label_length) {
+    let index = columns.indexOf(title) + 1;
+    if (detail_mode || header_label_length !== 0) {
+        index += 1;
+    }
+    let row = 0;
+    $(`table > tbody > tr td:nth-child(${index})`).each(
+        function () {
+            value = this.innerHTML;
+            if (value.length > ellipsis) {
+                this.innerHTML = `${value.substring(0, ellipsis)}<a tabindex="0" role="button" href="#" data-toggle="popover" data-trigger="focus" data-html='true' data-content='<div style="overflow: auto; max-height: 30vh; max-width: 25vw;">${value}</div>'>...</a>`;
+            }
+            row++;
+        }
+    );
+}
+
+function shortenHeaderRow(row, ellipsis, skip_label) {
+    $(`table > thead > tr:nth-child(${row + 1}) > td`).each(
+        function() {
+            value = this.innerHTML;
+            if (value.length > ellipsis && !skip_label) {
+                this.innerHTML = `${value.substring(0, ellipsis)}<a tabindex="0" role="button" href="#" data-toggle="popover" data-trigger="focus" data-html='true' data-content='<div style="overflow: auto; max-height: 30vh; max-width: 25vw;">${value}</div>'>...</a>`;
+            }
+            skip_label = false;
+        }
+    );
+}
+
+
+function linkUrlColumn(ah, dp_columns, columns, title, link_url, detail_mode, header_label_length) {
+    let index = dp_columns.indexOf(title) + 1;
+    if (detail_mode || header_label_length !== 0) {
+        index += 1;
+    }
+    let table_rows = $('#table').bootstrapTable('getData');
+    $(`table > tbody > tr td:nth-child(${index})`).each(
+        function () {
+            let row = this.parentElement.dataset.index;
+            let value = table_rows[row][title];
+            let link = link_url.replaceAll("{value}", value);
+            for (column of columns) {
+                link = link.replaceAll(`{${column}}`, table_rows[row][column]);
+            }
+            this.innerHTML = `<a href='${link}' target='_blank' >${value}</a>`;
+            row++;
+        }
+    );
+}
+
+function colorizeDetailCard(value, div, heatmap) {
+    let scale = null;
+
+    if (heatmap.heatmap.scale == "ordinal") {
+        if (heatmap.heatmap.domain != null) {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range.length == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain);
+            }
+        } else {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range.length == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)();
+            }
+        }
+    } else {
+        if (heatmap.heatmap.domain != null) {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp).range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)().domain(heatmap.heatmap.domain).clamp(heatmap.heatmap.clamp);
+            }
+        } else {
+            if (heatmap.heatmap.color_scheme != "") {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp).range(vega.scheme(heatmap.heatmap.color_scheme));
+            } else if (!heatmap.heatmap.range == 0) {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp).range(heatmap.heatmap.range);
+            } else {
+                scale = vega.scale(heatmap.heatmap.scale)().clamp(heatmap.heatmap.clamp);
+            }
+        }
+    }
+
+    if (value !== "") {
+        $(`${div}`).css( "background-color", scale(value) );
+    }
 }
